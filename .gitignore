@@ -1,3 +1,6 @@
+# Annoying files from OSX
+.DS_Store
+
 *.gem
 *.rbc
 /.config

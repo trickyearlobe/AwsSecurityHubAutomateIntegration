@@ -1,21 +1,10 @@
 require 'json'
 require 'aws-sdk-securityhub'
 
-def lambda_handler(event:, context:)
-
-  # Initialise our ASFF object
-  # asff = {}
-  # asff['SchemaVersion'] = '2018-10-08'
-  # asff['Id'] = "Chef-Automate/"
-
-  body = event['body']
-  body = JSON.parse(body) if body.class == String
-  report = body['report']
-
+def process_report(report, event)
   shclient = Aws::SecurityHub::Client.new
   aws_account_id = event['requestContext']['accountId']
 
-  puts "Message from #{event['requestContext']['identity']['sourceIp']}"
   puts "AWS Account ID #{aws_account_id}"
 
   if report.nil?
@@ -83,6 +72,23 @@ def lambda_handler(event:, context:)
       end
     end
   end
-  
-  { statusCode: 200, body: JSON.generate(result:'Success') }
+end
+
+#################################################################################
+# This is the Lambda entry point that receives messages from A2 Data Tap
+#################################################################################
+def lambda_handler(event:, context:)
+  puts "Message packet arrived from #{event['requestContext']['identity']['sourceIp']}"
+  body = event['body']
+  # The body may contain more than one report delimited by line breaks
+  puts "Packet contains #{body.lines.length} messages"
+  body.lines.each do |json_message|
+    message = JSON.parse(json_message)
+    if message['report']
+      process_report(message['report'], event)
+    else
+      puts "Skipping message as it is not a compliance report"
+    end
+    { statusCode: 200, body: JSON.generate(result:'Success') }
+  end
 end

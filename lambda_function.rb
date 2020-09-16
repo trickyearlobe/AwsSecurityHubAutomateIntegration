@@ -62,39 +62,52 @@ class ComplianceReport
 
     profile['controls'].each do |control|
 
-      # An array of findings to be sent to AWS Security Hub
+      # Check if any results caused the overall control to fail
       control_failed=false
       control['results'].each do |result|
         if result['status'] == "failed"
           control_failed = true
         end
       end unless control['results'].nil?
+      
+      # Handle long or missing control descriptions
+      control['desc'] = control['id'] unless control['desc']
+      control['desc'] = control['desc'][0...1000]+"...(truncated)" if control['desc'].length > 1024
 
-      if control_failed  
+      # Handle missing impacts
+      control['impact'] = 1 unless control['impact']
+
+      # For now, send only failed controls as AWS has a limit of 100 findings per batch
+      # TODO: Make a findings queue to allow us to send batches of 100
+      if control_failed
         finding = {
           schema_version: "2018-10-08",
           id: "#{profile['name']} #{control['id']}",
           product_arn: "arn:aws:securityhub:#{ENV['AWS_REGION']}:#{aws_account_id}:product/#{aws_account_id}/default",
           generator_id: "Inspec #{profile['name']}",
           aws_account_id: "#{aws_account_id}",
-          types: ["Other"],
+          types: ["Software and Configuration Checks/Industry and Regulatory Standards/CIS Host Hardening Benchmarks"],
           last_observed_at: report_timestamp,
           created_at: report_timestamp,
           updated_at: report_timestamp,
           severity: {
-            label: "HIGH", # accepts INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL
+            normalized: control['impact'] * 100
           },
-          title: "#{profile['name']} - #{control['id']}",
-          description: "#{profile['name']} - #{control['id']}",
+          title: "#{profile['name']} #{control['id']}",
+          description: control['desc'],
+          source_url: "#{automate_server}/compliance/reports/nodes/#{node_id}",
           resources: [
             type: "Other",
-            id: "#{chef_server}/#{chef_org}/#{node_name}",
+            id: node_name,
             partition: "aws",
             region: ENV['AWS_REGION'],
           ],
+          compliance: {
+            status: control_failed ? "FAILED" : "PASSED"
+          },
           workflow: {
             status: "NEW"
-          }
+          },
         }
         findings << finding
       end

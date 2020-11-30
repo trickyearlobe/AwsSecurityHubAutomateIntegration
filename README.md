@@ -2,27 +2,32 @@
 
 An AWS Lambda function that sends data received from Chef Automate Data Tap to AWS Security Hub
 
-**Basic flow:<br />**
+## Basic flow
 1. Create an AWS Lambda function with [lambda_function.rb](lambda_function.rb) to process Chef Infrastructure and Compliance Data and send it to the AWS Security Hub in the required [ASFF](https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-findings-format.html) format.<br />
-2. Create an AWS API Gateway and Resouce/Method to connect the Lambda function in (1) to.<br />
-3. Add the AWS API Gateway URL to a Chef Automate Data Tap.<br />
-4. View the Chef Infrastructure and Compliance Data in the AWS Security Hub.<br />
+2. Set up an IAM role to allow the Lambda to call SecurityHub functions.
+3. Create an AWS API Gateway and Resouce/Method so we can call the Lambda function over HTTPS
+4. Add the AWS API Gateway URL to a Chef Automate Data Tap
+5. View the Chef Infrastructure and Compliance Data in the AWS Security Hub
 
-**Detailed Flow:<br />**
-1. Create Lambda Funtion. <br />
-i. Create a new Lambda function as below:<br />
+## Creating the empty Lambda function
+Open the AWS Lambda console
+* select create function - author from scratch
+* Fill out the details as shown and click save
+
 ![Lambda Setup](images/lambda-setup.png "Lambda Setup")<br />
-Save your Lambda function. 
 
-ii. Add the Ruby code ([lambda_function.rb](lambda_function.rb)) to the function as below:<br />
+## Adding the Lambda code
+* Scroll down your lambda definition until you find the `function code` section
+* Add the code from ([lambda_function.rb](lambda_function.rb)) in the code editor as shown
 ![Lambda Code](images/ruby-lambda-function.png "Lambda Function")<br />
 
-iii. Add a Policy to the Lambda's role to allow logging and reporting findings to the AWS Security Hub.<br />
-Select the `Permissions` tab and click the existing link under `role name`.<br />
-![Role](images/role.png "Role")<br />
-Click `Attach policies` Button, then `Create policy`<br />
+## Adding the IAM role/policy to the Lambda function
+* Add a Policy to the Lambda's role to allow logging and reporting findings to the AWS Security Hub.
+* Select the `Permissions` tab and click the existing link under `role name`.
+![Role](images/role.png "Role")
+* Click `Attach policies` Button, then `Create policy`
 ![Attach policies](images/attach_policies.png "Attach policies")<br />
-Add the policy below using the json editor<br />
+* Add this policy using the json editor
 ```
 {
   "Version": "2012-10-17",
@@ -48,7 +53,7 @@ Click `Create policy`<br />
 Search for your newly created policy attach it to your role<br />
 ![Attach new policy](images/attach_new_policy.png "Attach new policy")<br />
 
-2. Create an AWS API Gateway Configuration.<br />
+## Creating an AWS API Gateway Configuration
 
 i. Create new API Gateway
 ![Create API](images/create_api.png "Create API")<br />

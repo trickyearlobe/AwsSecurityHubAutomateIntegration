@@ -33,6 +33,8 @@ Add the policy below using the json editor<br />
          "logs:CreateLogStream",
          "logs:CreateLogGroup",
          "logs:PutLogEvents",
+         "securityhub:UpdateFindings",
+         "securityhub:BatchUpdateFindings",
          "securityhub:BatchImportFindings"
        ],
        "Resource": "*"
@@ -91,7 +93,7 @@ iii. Test your data feed, you should get a postive reply if all is set up proper
 iv. Speed up the data interval and adjust the amount of node data sent.<br />
 ssh on to your Chef Automate machine and alter the config of the data feed. <br />
 Edit `/hab/pkgs/chef/data-feed-service/1.0.0/20200506151626/default.toml.`<br />
-Your version numbers may be different. Speed up the `feed_interval` and change the `node_batch_size` to 1
+Your version numbers may be different. Speed up the `feed_interval` and change the `node_batch_size` to 3
 ```
 [service]
 host = "localhost"
@@ -99,7 +101,7 @@ port = 14001
 feed_interval = "3m"
 asset_page_size = 100
 reports_page_size = 1000
-node_batch_size = 1
+node_batch_size = 3
 updated_nodes_only = false
 disable_cidr_filter = true
 cidr_filter = "0.0.0.0/0"

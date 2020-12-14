@@ -1,5 +1,6 @@
 require 'json'
 require 'aws-sdk-securityhub'
+require 'base64'
 
 class ComplianceReport
   def initialize(aws_account_id, report, node)
@@ -50,7 +51,7 @@ class ComplianceReport
   end
 
   def process_report
-    puts "Report for node #{node_name} from #{chef_server}/#{chef_org} reported via #{automate_server}"
+    puts "Compliance report for node #{node_name} from #{chef_server}/#{chef_org} reported via #{automate_server}"
     report['profiles'].each do |profile|
       process_profile(profile)
     end
@@ -129,11 +130,26 @@ class ComplianceReport
   end
 end
 
+# Check Basic Auth against ENV vars A2USER and A2PASS
+def authorized(authorization)
+  calculated = "Basic " + Base64.encode64("#{ENV['A2USER']}:#{ENV['A2PASS']}")
+  (authorization || "").strip == (calculated || "").strip
+end
+
 #################################################################################
 # This is the Lambda entry point that receives messages from A2 Data Tap
 #################################################################################
 def lambda_handler(event:, context:)
+  statusCode = 200
+  resultBody = JSON.pretty_generate(result:'Success')
   puts "Message packet arrived from #{event['requestContext']['identity']['sourceIp']}"
+
+  # Check the Basic Auth credentials against A2USER and A2PASS in environment
+  unless authorized(event['headers']['Authorization'])
+    puts "Authorization failed"
+    return { statusCode: 403, body: JSON.pretty_generate(result:"Dismal failure", reason: "Invalid credentials") }
+  end
+
   body = event['body']
   aws_account_id = event['requestContext']['accountId']
   # The body may contain more than one report delimited by line breaks
@@ -142,9 +158,17 @@ def lambda_handler(event:, context:)
     message = JSON.parse(json_message)
     if message['report']
       ComplianceReport.new(aws_account_id, message['report'], message['node']).process_report
+    elsif (message['text'] && message['text']=="TEST: Successful validation completed by Automate")
+      puts "Received a connecton test from Chef Automate"
+    elsif (message['attributes'])
+      puts "Received Chef run data for node #{message['node']['hostname']}... discarding"
     else
-      puts "Skipping message as it is not a compliance report"
+      puts "Skipping valid JSON message as its type is not recognised. It looks like this...\n#{message}"
     end
-    { statusCode: 200, body: JSON.generate(result:'Success') }
+  rescue JSON::ParserError => e
+    puts "One or more records did not contain valid JSON.\nWe received...\n#{body.lines.join("\n")}"
+    statusCode = 400
+    resultBody = JSON.pretty_generate(result:"Dismal failure", reason:"Bad JSON", original_request:body.lines.join("\n"))
   end
+  { statusCode: statusCode, body: resultBody }
 end

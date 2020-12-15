@@ -7,7 +7,7 @@ class ComplianceReport
     @aws_account_id = aws_account_id
     @report = report
     @node = node
-    @shclient = Aws::SecurityHub::Client.new
+    @shclient = Aws::SecurityHub::Client.new(http_proxy:ENV['PROXY'])
   end
 
   def report

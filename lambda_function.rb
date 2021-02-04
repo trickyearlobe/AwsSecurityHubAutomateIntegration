@@ -1,6 +1,37 @@
 require 'json'
 require 'aws-sdk-securityhub'
 require 'base64'
+require 'aws-sdk-secretsmanager'
+
+def get_secret(secret_name)
+  region_name = ENV['AWS_REGION']
+  puts "Retrieving #{secret_name} creds from secrets manager in #{ENV['AWS_REGION']}"
+  client = Aws::SecretsManager::Client.new(region: region_name)
+  begin
+    get_secret_value_response = client.get_secret_value(secret_id: secret_name)
+  rescue Aws::SecretsManager::Errors::DecryptionFailure => e
+    puts "Secrets Manager can't decrypt the protected secret text using the provided KMS key."
+    raise
+  rescue Aws::SecretsManager::Errors::InternalServiceError => e
+    puts "An error occurred on the server side retrieving the secret"
+    raise
+  rescue Aws::SecretsManager::Errors::InvalidParameterException => e
+    puts "You provided an invalid value for a parameter retrieving the secret"
+    raise
+  rescue Aws::SecretsManager::Errors::InvalidRequestException => e
+    puts "You provided a parameter value that is not valid for the current state of the resource retrieving the secret"
+    raise
+  rescue Aws::SecretsManager::Errors::ResourceNotFoundException => e
+    puts "We can't find the resource that you asked for retrieving the secret"
+    raise
+  else
+    if get_secret_value_response.secret_string
+      JSON.parse(get_secret_value_response.secret_string)
+    else
+      JSON.parse(Base64.decode64(get_secret_value_response.secret_binary))
+    end
+  end
+end
 
 class ComplianceReport
   def initialize(aws_account_id, report, node)
@@ -130,10 +161,18 @@ class ComplianceReport
   end
 end
 
-# Check Basic Auth against ENV vars A2USER and A2PASS
+# Check Basic Auth against ENV vars A2USER and A2PASS or AWS Secrets Manager
 def authorized(authorization)
-  calculated = "Basic " + Base64.encode64("#{ENV['A2USER']}:#{ENV['A2PASS']}")
-  (authorization || "").strip == (calculated || "").strip
+  if (ENV['SECRET_NAME'])
+    creds = get_secret(ENV['SECRET_NAME'])
+    calculated = "Basic " + Base64.encode64("#{creds['a2user'] || creds['A2USER']}:#{creds['a2pass'] || creds['A2PASS']}")
+    return (authorization || "").strip == (calculated || "").strip
+  end
+  if (ENV['A2USER'] && ENV['A2PASS'])
+    calculated = "Basic " + Base64.encode64("#{ENV['A2USER']}:#{ENV['A2PASS']}")
+    return (authorization || "").strip == (calculated || "").strip
+  end
+  return false
 end
 
 #################################################################################
